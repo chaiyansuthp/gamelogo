@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมเปิดแผ่นป้ายทายภาพโลโก้ (Classroom Logo Reveal)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700;800&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        h1, h2, h3, .font-display {
+            font-family: 'Kanit', sans-serif;
+        }
+
+        /* แผ่นป้ายสี่เหลี่ยมชิดกันไร้ช่องว่าง (Seamless Square Grid) */
+        .tile-container {
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .tile-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s ease;
+            transform-style: preserve-3d;
+        }
+        .tile-container.revealed .tile-inner {
+            transform: rotateY(180deg);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .tile-front {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+            transition: filter 0.15s ease;
+        }
+        .tile-container:hover:not(.revealed) .tile-front {
+            filter: brightness(1.18);
+        }
+
+        /* โทนสีแผ่นป้าย */
+        .tile-color-0 { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .tile-color-1 { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+        .tile-color-2 { background: linear-gradient(135deg, #ec4899, #be185d); }
+        .tile-color-3 { background: linear-gradient(135deg, #f59e0b, #b45309); }
+        .tile-color-4 { background: linear-gradient(135deg, #10b981, #047857); }
+        .tile-color-5 { background: linear-gradient(135deg, #06b6d4, #0e7490); }
+
+        @keyframes popIn {
+            0% { transform: scale(0.6); opacity: 0; }
+            75% { transform: scale(1.04); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* โหมดพรางตาในคลังภาพ */
+        .secret-blur {
+            filter: blur(18px) brightness(0.45);
+            transition: filter 0.25s ease;
+        }
+        .secret-blur:hover {
+            filter: blur(0px) brightness(1);
+        }
+
+        /* แอนิเมชันโพเดียมผู้ชนะ */
+        @keyframes riseUp {
+            0% { transform: translateY(40px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .animate-podium-1 { animation: riseUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both; }
+        .animate-podium-2 { animation: riseUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
+        .animate-podium-3 { animation: riseUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both; }
+
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.6); border-radius: 4px; }
+    </style>
+</head>
+<body class="flex flex-col justify-between p-2 sm:p-4">
+
+    <!-- ==================== แถบเมนูด้านบน (TOP BAR) ==================== -->
+    <header class="w-full max-w-7xl mx-auto bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-2xl p-3 mb-3 shadow-xl flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+            <!-- โลโก้หน้าชื่อเกม -->
+            <div onclick="openSettingsModal('branding')" title="คลิกเพื่อเปลี่ยนโลโก้และชื่อเกม" class="cursor-pointer w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center text-slate-900 text-2xl shadow-lg overflow-hidden border-2 border-white/20 hover:scale-105 transition shrink-0">
+                <i id="game-logo-icon" class="fa-solid fa-puzzle-piece"></i>
+                <img id="game-logo-img" src="" alt="Game Logo" class="hidden w-full h-full object-cover">
+            </div>
+            <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h1 id="game-title-display" onclick="openSettingsModal('branding')" title="คลิกเพื่อแก้ไขชื่อเกม" class="cursor-pointer hover:text-amber-300 transition text-lg sm:text-xl font-bold text-white leading-tight tracking-wide flex items-center gap-1.5">
+                        <span>เกมเปิดแผ่นป้ายทายภาพโลโก้</span>
+                        <i class="fa-solid fa-pen text-xs text-slate-400"></i>
+                    </h1>
+                    <span id="round-badge" class="text-xs font-bold bg-indigo-600 px-2.5 py-0.5 rounded-full text-white">ข้อที่ 1 / 5</span>
+                </div>
+                <p class="text-xs text-slate-300" id="header-status-text">กำลังเล่นภาพตัวอย่าง (กด "การตั้งค่า" เพื่ออัปโหลดรูปโลโก้ของครูได้)</p>
+            </div>
+        </div>
+
+        <!-- ปุ่มควบคุมหลัก -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openWinnerSummary()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold text-sm shadow-md flex items-center gap-1.5 transition active:scale-95">
+                <i class="fa-solid fa-trophy"></i>
+                <span>สรุปผลผู้ชนะ</span>
+            </button>
+
+            <button onclick="openSettingsModal('pool')" class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm shadow-md flex items-center gap-2 transition active:scale-95">
+                <i class="fa-solid fa-gear"></i>
+                <span>การตั้งค่า</span>
+                <span id="pool-badge" class="bg-white/20 px-2 py-0.5 rounded-full text-xs">5</span>
+            </button>
+
+            <button id="btn-sound" onclick="toggleSound()" class="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-emerald-400 flex items-center justify-center transition" title="เปิด/ปิดเสียงเอฟเฟกต์">
+                <i class="fa-solid fa-volume-high"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ==================== พื้นที่เล่นเกมหลัก (MAIN GAME ARENA) ==================== -->
+    <main class="w-full max-w-7xl mx-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch mb-3">
+        
+        <!-- ฝั่งซ้าย (8 คอลัมน์): กระดานภาพและแผ่นป้าย -->
+        <div class="lg:col-span-8 bg-slate-900/80 backdrop-blur-md border border-slate-700/70 rounded-2xl p-3 sm:p-5 flex flex-col justify-between shadow-2xl relative">
+            
+            <!-- แถบสถานะด้านบนกระดาน: คะแนนรางวัล + จำนวนป้าย + ปุ่มควบคุมข้อ -->
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-700/60">
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-500/20 border border-amber-400/50 rounded-xl px-4 py-1.5 flex items-center gap-2.5">
+                        <i class="fa-solid fa-coins text-amber-400 text-xl"></i>
+                        <div>
+                            <div class="text-[11px] text-amber-200 leading-none">คะแนนรางวัลข้อนี้</div>
+                            <div id="current-reward-score" class="text-2xl font-extrabold text-amber-400 font-display leading-tight">100</div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-300 hidden sm:block">
+                        <div>เปิดไปแล้ว: <span id="opened-count" class="font-bold text-white">0</span> / <span id="total-tiles-count">16</span> ป้าย</div>
+                        <div class="text-slate-400 text-[11px]">ตำแหน่งภาพถูกสุ่มซ่อนไว้</div>
+                    </div>
+                </div>
+
+                <!-- แถบแสดงคำใบ้ (จะแสดงเมื่อกดปุ่มคำใบ้) -->
+                <div id="hint-banner" class="hidden flex-1 min-w-[200px] bg-cyan-950/95 border border-cyan-400/60 rounded-xl px-3.5 py-2 text-cyan-200 text-sm font-medium flex items-center justify-between gap-2 animate-pop-in">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-lightbulb text-yellow-300 text-base"></i>
+                        <span>คำใบ้: <strong id="hint-text-display" class="text-white">...</strong></span>
+                    </div>
+                    <button onclick="openEditItemModal(currentIndex)" class="text-xs bg-cyan-800 hover:bg-cyan-700 px-2 py-1 rounded text-white" title="แก้ไขคำใบ้">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </div>
+
+                <!-- ปุ่มสุ่มตำแหน่งภาพ (ไม่บอกพิกัด) & เปลี่ยนข้อ -->
+                <div class="flex items-center gap-1.5">
+                    <button onclick="rerollImagePosition()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyan-300 text-xs sm:text-sm font-semibold transition flex items-center gap-1.5" title="สุ่มย้ายตำแหน่งภาพใหม่">
+                        <i class="fa-solid fa-shuffle"></i>
+                        <span>สุ่มตำแหน่ง</span>
+                    </button>
+                    <button onclick="prevQuestion()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-sm transition" title="ข้อก่อนหน้า">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button onclick="resetCurrentBoard()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-sm transition" title="ปิดป้ายเริ่มข้อนี้ใหม่">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button onclick="nextQuestion()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow transition flex items-center gap-1.5">
+                        <span>ข้อถัดไป</span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- พื้นที่กระดานเกม (Board Container) -->
+            <div class="relative w-full aspect-[16/10] max-h-[54vh] mx-auto bg-white rounded-2xl overflow-hidden shadow-inner border-4 border-slate-700 flex items-center justify-center">
+                
+                <!-- รูปภาพโลโก้ด้านหลัง (สุ่มตำแหน่งอัตโนมัติในแต่ละข้อ และจัดกึ่งกลางเมื่อเฉลย) -->
+                <div class="w-full h-full flex items-center justify-center overflow-hidden bg-white p-4">
+                    <img id="logo-image" src="" alt="Logo Puzzle" class="max-w-full max-h-full object-contain transition-transform duration-500 ease-out" style="transform: translate(0%, 0%) scale(0.72);">
+                </div>
+
+                <!-- ตารางแผ่นป้ายสี่เหลี่ยมชิดกันไร้ช่องว่าง (Seamless Grid) -->
+                <div id="tiles-grid" class="absolute inset-0 grid gap-0 z-10 overflow-hidden"></div>
+
+                <!-- แบนเนอร์เฉลยคำตอบ (แสดงเมื่อกดเฉลย) -->
+                <div id="answer-overlay" class="hidden absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-slate-950 via-slate-900/95 to-transparent pt-12 pb-5 px-6 text-center animate-pop-in">
+                    <div class="inline-block bg-emerald-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider px-3 py-1 rounded-full mb-1 shadow">
+                        <i class="fa-solid fa-check-circle mr-1"></i> เฉลยคำตอบ
+                    </div>
+                    <h2 id="answer-title" class="text-3xl sm:text-5xl font-extrabold text-white font-display drop-shadow-[0_2px_10px_rgba(16,185,129,0.8)] tracking-wide">
+                        BRAND NAME
+                    </h2>
+                    <p id="answer-subtitle" class="text-amber-300 text-sm sm:text-base mt-1 font-medium"></p>
+                </div>
+            </div>
+
+            <!-- แถบสถานะโหมดเปิดอัตโนมัติ -->
+            <div id="auto-reveal-bar" class="hidden mt-3 bg-rose-950/85 border border-rose-500/60 rounded-xl p-2.5 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2 text-rose-200 text-sm font-semibold">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+                    <span>เปิดแผ่นป้ายอัตโนมัติใน <strong id="auto-countdown-text" class="text-white text-lg">3.0</strong> วิ</span>
+                </div>
+                <div class="flex-1 max-w-xs bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                    <div id="auto-progress-fill" class="bg-gradient-to-r from-amber-400 to-rose-500 h-full w-full transition-all duration-100"></div>
+                </div>
+                <button onclick="stopAutoReveal()" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg">
+                    <i class="fa-solid fa-hand mr-1"></i> หยุด!
+                </button>
+            </div>
+        </div>
+
+        <!-- ฝั่งขวา (4 คอลัมน์): แผงควบคุมตัวช่วย & ขนาดตาราง -->
+        <div class="lg:col-span-4 bg-slate-900/80 backdrop-blur-md border border-slate-700/70 rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-2xl">
+            
+            <div class="space-y-3">
+                <h3 class="text-base font-bold text-indigo-300 flex items-center gap-2 border-b border-slate-700/70 pb-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                    <span>ตัวช่วยพิเศษ & การควบคุมเกม</span>
+                </h3>
+
+                <!-- 1. ปุ่มเฉลยทั้งหมด -->
+                <button onclick="revealAllTiles()" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-extrabold text-lg shadow-lg flex items-center justify-center gap-2 transition transform active:scale-95">
+                    <i class="fa-solid fa-eye text-xl"></i>
+                    <span>เฉลยทั้งหมด</span>
+                </button>
+
+                <!-- 2. ตัวช่วยเปิดป้าย / คำใบ้ -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-power-corners" onclick="revealCorners()" class="p-2.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-100 font-semibold text-sm flex flex-col items-center justify-center gap-1 transition active:scale-95">
+                        <i class="fa-solid fa-border-all text-indigo-300 text-lg"></i>
+                        <span>เปิดมุม 4 ด้าน</span>
+                        <span id="corners-penalty-badge" class="text-[11px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full shadow-sm">-50 คะแนน</span>
+                    </button>
+
+                    <button id="btn-power-hint" onclick="useHintPowerup()" class="p-2.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 text-cyan-100 font-semibold text-sm flex flex-col items-center justify-center gap-1 transition active:scale-95">
+                        <i class="fa-solid fa-lightbulb text-yellow-300 text-lg"></i>
+                        <span>คำใบ้</span>
+                        <span id="hint-penalty-badge" class="text-[11px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full shadow-sm">-20 คะแนน</span>
+                    </button>
+
+                    <button id="btn-auto-toggle" onclick="toggleAutoReveal()" class="p-2.5 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 border border-rose-400/40 text-rose-100 font-semibold text-sm flex flex-col items-center justify-center gap-1 transition active:scale-95">
+                        <i class="fa-solid fa-stopwatch text-rose-300 text-lg"></i>
+                        <span id="btn-auto-text">เปิดอัตโนมัติ (3 วิ)</span>
+                        <span class="text-[10px] text-rose-200/80">-10 / ป้าย</span>
+                    </button>
+
+                    <button id="btn-zoom-toggle" onclick="toggleZoomMode()" class="p-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600/50 border border-amber-400/40 text-amber-100 font-semibold text-sm flex flex-col items-center justify-center gap-1 transition active:scale-95">
+                        <i class="fa-solid fa-magnifying-glass-plus text-amber-300 text-lg"></i>
+                        <span id="btn-zoom-text">ซูมภาพ: ปิด</span>
+                        <span class="text-[10px] text-amber-200/80">ขยายภาพด้านหลัง</span>
+                    </button>
+                </div>
+
+                <!-- 3. เลือกขนาดตาราง และโหมดป้าย (สี่เหลี่ยมชิดกันเท่านั้น) -->
+                <div class="bg-slate-800/85 border border-slate-700 rounded-xl p-3 space-y-2.5">
+                    <div class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                        <span><i class="fa-solid fa-table-cells text-indigo-400 mr-1"></i> ขนาดแผ่นป้าย (สี่เหลี่ยมชิดกัน)</span>
+                        <span id="current-mode-badge" class="text-[11px] bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded">โหมดตัวเลข</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button onclick="changeGridSize(3)" id="grid-btn-3" class="grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-slate-600 bg-slate-700 text-slate-200 hover:bg-slate-600 transition">3x3 (9)</button>
+                        <button onclick="changeGridSize(4)" id="grid-btn-4" class="grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-indigo-400 bg-indigo-600 text-white shadow transition">4x4 (16)</button>
+                        <button onclick="changeGridSize(5)" id="grid-btn-5" class="grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-slate-600 bg-slate-700 text-slate-200 hover:bg-slate-600 transition">5x5 (25)</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button onclick="changeTileMode('number')" id="mode-btn-number" class="py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white border border-indigo-400 transition">
+                            <i class="fa-solid fa-hashtag mr-1"></i> โหมดตัวเลข
+                        </button>
+                        <button onclick="changeTileMode('quiz')" id="mode-btn-quiz" class="py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600 transition">
+                            <i class="fa-solid fa-circle-question mr-1"></i> โหมดป้ายคำถาม
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- แถบข้อความแจ้งเตือน -->
+            <div id="status-toast" class="text-center text-xs text-slate-300 bg-slate-950/60 py-2 px-3 rounded-xl border border-slate-800">
+                คลิกที่แผ่นป้ายเพื่อเปิดทีละช่อง (-10 คะแนน/ป้าย)
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== แถบคะแนนทีมด้านล่าง (TEAM SCOREBOARD) ==================== -->
+    <footer class="w-full max-w-7xl mx-auto bg-slate-900/85 backdrop-blur-md border border-slate-700/70 rounded-2xl p-3 shadow-xl">
+        <div class="flex items-center justify-between mb-2 px-1">
+            <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-users text-amber-400"></i>
+                <span>กระดานคะแนนทีมแข่งขัน (คลิกชื่อทีมเพื่อแก้ไข)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button onclick="adjustTeamCount(-1)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs text-slate-300">
+                    <i class="fa-solid fa-minus"></i> ลดทีม
+                </button>
+                <button onclick="adjustTeamCount(1)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs text-slate-300">
+                    <i class="fa-solid fa-plus"></i> เพิ่มทีม
+                </button>
+                <button onclick="resetAllScores()" class="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/50 text-xs text-rose-300 ml-1">
+                    <i class="fa-solid fa-eraser"></i> ล้างคะแนน
+                </button>
+            </div>
+        </div>
+
+        <div id="teams-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5"></div>
+    </footer>
+
+    <!-- ==================== UNIFIED SETTINGS MODAL (3 แท็บในปุ่มเดียว) ==================== -->
+    <div id="modal-unified-settings" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-pop-in">
+            
+            <div class="p-4 bg-slate-800/95 border-b border-slate-700 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-lg">
+                        <i class="fa-solid fa-gear"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white leading-tight">การตั้งค่าเกม & คลังภาพโลโก้</h2>
+                        <p class="text-xs text-slate-400">จัดการโจทย์ภาพโลโก้ ชื่อกิจกรรม และชุดคำถามบนแผ่นป้าย</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('modal-unified-settings')" class="w-9 h-9 rounded-xl bg-slate-700 hover:bg-rose-600 text-white flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- แถบเลือก 3 แท็บ -->
+            <div class="grid grid-cols-3 bg-slate-950/60 border-b border-slate-700/80 p-1.5 gap-1.5">
+                <button onclick="switchSettingsTab('pool')" id="tab-btn-pool" class="py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-indigo-600 text-white shadow transition">
+                    <i class="fa-solid fa-images"></i>
+                    <span>1. คลังภาพ & โจทย์ลับ</span>
+                </button>
+                <button onclick="switchSettingsTab('branding')" id="tab-btn-branding" class="py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-slate-800/70 text-slate-300 hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-id-badge"></i>
+                    <span>2. ชื่อ & โลโก้เกม</span>
+                </button>
+                <button onclick="switchSettingsTab('rules')" id="tab-btn-rules" class="py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-slate-800/70 text-slate-300 hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>3. กติกา & ป้ายคำถาม</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: คลังภาพ & โจทย์ลับ -->
+            <div id="tab-content-pool" class="flex-1 flex flex-col overflow-hidden">
+                <!-- แถบบันทึกและโหลดชุดเกม (.json) -->
+                <div class="px-3.5 py-2.5 bg-amber-950/35 border-b border-amber-500/30 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 text-xs text-amber-200">
+                        <i class="fa-solid fa-box-archive text-amber-400 text-sm"></i>
+                        <span><strong>บันทึก/โหลดชุดเกม:</strong> เก็บภาพโลโก้ คำเฉลย และคำถามทั้งหมดไว้เป็นไฟล์เพื่อเปิดเล่นครั้งถัดไป</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportGamePack()" class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow flex items-center gap-1.5 transition active:scale-95">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>บันทึกชุดเกม (.json)</span>
+                        </button>
+                        <label class="cursor-pointer px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow flex items-center gap-1.5 transition active:scale-95">
+                            <i class="fa-solid fa-folder-open"></i>
+                            <span>โหลดชุดเกม (.json)</span>
+                            <input type="file" id="import-pack-input" accept=".json,application/json" onchange="importGamePack(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-3.5 bg-slate-800/40 border-b border-slate-700/70 flex flex-wrap items-center justify-between gap-2.5">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="cursor-pointer px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-lg flex items-center gap-2 transition active:scale-95">
+                            <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+                            <span>อัปโหลดภาพโลโก้ (เลือกได้หลายไฟล์)</span>
+                            <input type="file" id="file-upload-input" multiple accept="image/*" onchange="handleBatchUpload(event)" class="hidden">
+                        </label>
+
+                        <button onclick="resetToBuiltInSamples()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs font-medium transition">
+                            <i class="fa-solid fa-rotate-left mr-1"></i> โหลดภาพตัวอย่างเริ่มต้น
+                        </button>
+
+                        <button onclick="shufflePlaylist()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 text-xs font-medium transition">
+                            <i class="fa-solid fa-shuffle mr-1"></i> สลับลำดับข้อ
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-700">
+                        <i class="fa-solid fa-eye-slash text-purple-400"></i>
+                        <span class="text-xs text-slate-200 font-medium">โหมดพรางตา (สำหรับนักเรียนเลือกโจทย์ลับ)</span>
+                        <input type="checkbox" id="toggle-secret-blur" onchange="renderPoolGrid()" class="w-4 h-4 accent-purple-500 cursor-pointer">
+                    </div>
+                </div>
+
+                <div class="px-4 py-2 bg-indigo-950/40 border-b border-slate-800 text-[11px] sm:text-xs text-indigo-200 flex items-center justify-between flex-wrap gap-1">
+                    <span><i class="fa-solid fa-circle-info text-amber-400 mr-1"></i> ทริค: ตั้งชื่อไฟล์แบบ <code class="bg-slate-950 px-1.5 py-0.5 rounded text-amber-300">Starbucks - ร้านกาแฟเงือกเขียว.png</code> ระบบจะแยกคำเฉลยกับคำใบ้อัตโนมัติ</span>
+                    <span class="text-slate-400">กด "เลือกเล่นข้อนี้" เพื่อเปิดโจทย์ลงกระดาน</span>
+                </div>
+
+                <div class="p-4 overflow-y-auto flex-1">
+                    <div id="pool-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: ชื่อ & โลโก้เกม -->
+            <div id="tab-content-branding" class="hidden flex-1 overflow-y-auto p-5">
+                <div class="max-w-lg mx-auto space-y-5">
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1.5 font-semibold">ชื่อเกม / ชื่อกิจกรรมในห้องเรียน</label>
+                        <input type="text" id="input-game-title" value="เกมเปิดแผ่นป้ายทายภาพโลโก้" oninput="livePreviewTitle(this.value)" class="w-full bg-slate-950 border border-slate-600 rounded-xl px-3.5 py-2.5 text-white font-bold text-base focus:border-amber-400 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-300 mb-1.5 font-semibold">รูปภาพโลโก้หน้าชื่อเกม</label>
+                        <div class="flex items-center gap-4 bg-slate-950/70 p-4 rounded-xl border border-slate-700">
+                            <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center text-slate-900 text-4xl overflow-hidden shrink-0 border-2 border-white/20 shadow-lg">
+                                <i id="preview-logo-icon" class="fa-solid fa-puzzle-piece"></i>
+                                <img id="preview-logo-img" src="" class="hidden w-full h-full object-cover">
+                            </div>
+                            <div class="flex-1 space-y-2.5">
+                                <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow transition">
+                                    <i class="fa-solid fa-upload"></i>
+                                    <span>อัปโหลดรูปภาพโลโก้</span>
+                                    <input type="file" accept="image/*" onchange="handleGameLogoUpload(event)" class="hidden">
+                                </label>
+                                <div>
+                                    <button onclick="resetGameLogo()" class="text-xs text-slate-400 hover:text-rose-400 underline">ใช้ไอคอนเริ่มต้น</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-2">หรือเลือกไอคอนสำเร็จรูป:</label>
+                        <div class="grid grid-cols-6 gap-2.5">
+                            <button onclick="selectPresetIcon('fa-puzzle-piece')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-puzzle-piece"></i></button>
+                            <button onclick="selectPresetIcon('fa-trophy')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-trophy"></i></button>
+                            <button onclick="selectPresetIcon('fa-crown')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-crown"></i></button>
+                            <button onclick="selectPresetIcon('fa-rocket')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-rocket"></i></button>
+                            <button onclick="selectPresetIcon('fa-brain')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-brain"></i></button>
+                            <button onclick="selectPresetIcon('fa-graduation-cap')" class="p-3 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-400 text-xl transition"><i class="fa-solid fa-graduation-cap"></i></button>
+                        </div>
+                    </div>
+
+                    <button onclick="saveBranding()" class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm shadow-lg transition">
+                        <i class="fa-solid fa-check mr-1"></i> บันทึกชื่อเกม & โลโก้
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 3: กติกา & ป้ายคำถาม -->
+            <div id="tab-content-rules" class="hidden flex-1 overflow-y-auto p-5">
+                <div class="max-w-2xl mx-auto space-y-5 text-sm">
+                    <div class="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+                        <h3 class="font-bold text-amber-400 mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-scale-balanced"></i> กติกาการคิดคะแนนในแต่ละข้อ
+                        </h3>
+                        <ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">
+                            <li>• คะแนนรางวัลเริ่มต้นต่อข้อ: <strong class="text-white">100 คะแนน</strong></li>
+                            <li>• เปิดแผ่นป้ายปกติ 1 ช่อง: ลดคะแนนรางวัลลง <strong class="text-amber-300">10 คะแนน</strong></li>
+                            <li>• กดตัวช่วย <strong>"เปิดมุม 4 ด้าน"</strong>: เปิดป้ายมุมทั้ง 4 มุมพร้อมกัน และลดคะแนนรางวัลลง <strong class="text-rose-400">50 คะแนนถ้วน</strong></li>
+                            <li>• กดตัวช่วย <strong>"คำใบ้"</strong>: แสดงคำใบ้ประจำข้อ และลดคะแนนรางวัลลง <strong class="text-rose-400">20 คะแนน</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-cyan-400 flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-question"></i> ชุดคำถามสำหรับ "โหมดป้ายคำถาม" (บรรทัดละ 1 ข้อ)
+                            </h3>
+                            <button onclick="loadDefaultQuizQuestions()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded text-slate-200">
+                                โหลดคำถามตัวอย่าง
+                            </button>
+                        </div>
+                        <textarea id="setting-quiz-list" rows="7" class="w-full bg-slate-950 border border-slate-600 rounded-xl p-3 text-slate-100 text-xs leading-relaxed" placeholder="พิมพ์คำถามบรรทัดละ 1 ข้อ..."></textarea>
+                    </div>
+
+                    <button onclick="saveRulesSettings()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg transition">
+                        <i class="fa-solid fa-check mr-1"></i> บันทึกชุดคำถาม
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-3 bg-slate-800/95 border-t border-slate-700 flex items-center justify-between">
+                <span class="text-xs text-slate-400">การเปลี่ยนแปลงจะมีผลบนกระดานทันที</span>
+                <button onclick="closeModal('modal-unified-settings')" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow">
+                    กลับสู่หน้าจอเล่นเกม
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: แก้ไขคำเฉลยและคำใบ้ ==================== -->
+    <div id="modal-edit-item" class="hidden fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 shadow-2xl animate-pop-in">
+            <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-amber-400"></i>
+                <span>แก้ไขคำเฉลยและคำใบ้</span>
+            </h3>
+            <input type="hidden" id="edit-item-index">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">คำเฉลย (ชื่อโลโก้ / แบรนด์)</label>
+                    <input type="text" id="edit-item-answer" class="w-full bg-slate-950 border border-slate-600 rounded-xl px-3 py-2 text-white font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">คำใบ้ / หมวดหมู่</label>
+                    <input type="text" id="edit-item-hint" placeholder="เช่น ร้านกาแฟ, แบรนด์กีฬา, แอปวิดีโอ" class="w-full bg-slate-950 border border-slate-600 rounded-xl px-3 py-2 text-cyan-300">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button onclick="closeModal('modal-edit-item')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm">ยกเลิก</button>
+                <button onclick="saveEditedItem()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: สรุปผลผู้ชนะ (WINNER PODIUM) ==================== -->
+    <div id="modal-winner" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-hidden">
+        <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+        <div class="relative z-10 bg-slate-900/95 border-2 border-amber-400/60 rounded-3xl w-full max-w-3xl p-5 sm:p-8 shadow-[0_0_50px_rgba(245,158,11,0.3)] text-center animate-pop-in">
+            <div class="inline-flex items-center gap-2 bg-amber-500/20 border border-amber-400/50 text-amber-300 px-4 py-1 rounded-full text-xs sm:text-sm font-bold uppercase tracking-widest mb-2">
+                <i class="fa-solid fa-crown text-amber-400"></i> ประกาศผลรางวัล
+            </div>
+            <h2 id="winner-game-title" class="text-2xl sm:text-4xl font-extrabold text-white font-display mb-6">
+                สรุปผลการแข่งขัน
+            </h2>
+
+            <div id="podium-container" class="flex items-end justify-center gap-2 sm:gap-4 min-h-[240px] sm:min-h-[270px] mb-6 px-2"></div>
+            <div id="fourth-place-container" class="hidden mb-6 max-w-md mx-auto bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 flex items-center justify-between text-sm"></div>
+
+            <div class="flex flex-wrap items-center justify-center gap-3 pt-2 border-t border-slate-800">
+                <button onclick="closeWinnerSummary()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 font-semibold text-sm transition">
+                    <i class="fa-solid fa-arrow-left mr-1.5"></i> กลับไปเล่นต่อ
+                </button>
+                <button onclick="startNewGameFromWinner()" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-extrabold text-sm shadow-lg flex items-center gap-2 transition active:scale-95">
+                    <i class="fa-solid fa-rotate-right"></i> เริ่มเกมใหม่ (รีเซ็ตคะแนน)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        // ---------------- 1. ระบบเสียงสังเคราะห์ (Web Audio API) ----------------
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'flip') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(340, now);
+                    osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'tick') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(800, now);
+                    gain.gain.setValueAtTime(0.09, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'reveal') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.type = 'triangle';
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(freq, now + idx * 0.08);
+                        g.gain.setValueAtTime(0.2, now + idx * 0.08);
+                        g.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.35);
+                        o.start(now + idx * 0.08);
+                        o.stop(now + idx * 0.08 + 0.35);
+                    });
+                } else if (type === 'score') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(987.77, now);
+                    osc.frequency.setValueAtTime(1318.51, now + 0.08);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'powerup') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.exponentialRampToValueAtTime(760, now + 0.18);
+                    gain.gain.setValueAtTime(0.14, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+                    osc.start(now);
+                    osc.stop(now + 0.18);
+                }
+            } catch (e) {
+                console.warn('Audio prevented:', e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('btn-sound');
+            if (soundEnabled) {
+                btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+                btn.classList.replace('text-slate-500', 'text-emerald-400');
+                playSound('flip');
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+                btn.classList.replace('text-emerald-400', 'text-slate-500');
+            }
+        }
+
+        // ---------------- 2. ภาพตัวอย่างในตัว (5 SVG Data-URI Logos) ----------------
+        function createBuiltInLogoSvg(styleType) {
+            let inner = '';
+            if (styleType === 'coffee') {
+                inner = `
+                    <circle cx="200" cy="145" r="88" fill="#00704A"/>
+                    <circle cx="200" cy="145" r="72" fill="none" stroke="#ffffff" stroke-width="5"/>
+                    <polygon points="200,88 212,115 242,118 220,138 226,168 200,152 174,168 180,138 158,118 188,115" fill="#ffffff"/>
+                    <path d="M165 182 Q200 202 235 182" stroke="#ffffff" stroke-width="7" stroke-linecap="round" fill="none"/>
+                `;
+            } else if (styleType === 'swoosh') {
+                inner = `
+                    <rect x="85" y="75" width="230" height="140" rx="28" fill="#111827"/>
+                    <path d="M125 155 Q165 190 275 110 Q190 155 150 135 Q132 126 125 155 Z" fill="#ffffff"/>
+                `;
+            } else if (styleType === 'apple') {
+                inner = `
+                    <path d="M200 105 C170 105 148 128 148 160 C148 195 174 222 200 222 C226 222 252 195 252 160 C252 128 230 105 200 105 Z" fill="#334155"/>
+                    <circle cx="246" cy="148" r="22" fill="#ffffff"/>
+                    <path d="M202 98 Q208 72 228 68 Q224 92 202 98 Z" fill="#10b981"/>
+                `;
+            } else if (styleType === 'youtube') {
+                inner = `
+                    <rect x="95" y="78" width="210" height="136" rx="34" fill="#FF0000"/>
+                    <polygon points="180,115 180,177 236,146" fill="#ffffff"/>
+                `;
+            } else if (styleType === 'arches') {
+                inner = `
+                    <rect x="95" y="70" width="210" height="150" rx="30" fill="#DA291C"/>
+                    <path d="M135 195 C135 105 195 105 195 195 M195 195 C195 105 255 105 255 195" stroke="#FFC72C" stroke-width="20" stroke-linecap="round" fill="none"/>
+                `;
+            }
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 290" width="400" height="290">
+                <rect width="400" height="290" fill="#ffffff"/>
+                ${inner}
+            </svg>`;
+            return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        }
+
+        const defaultSampleItems = [
+            {
+                id: 'sample-1',
+                src: createBuiltInLogoSvg('coffee'),
+                answer: 'Starbucks (ตัวอย่าง)',
+                hint: 'ร้านกาแฟสีเขียวชื่อดังระดับโลก',
+                isSample: true
+            },
+            {
+                id: 'sample-2',
+                src: createBuiltInLogoSvg('swoosh'),
+                answer: 'Nike (ตัวอย่าง)',
+                hint: 'แบรนด์รองเท้าและอุปกรณ์กีฬา Just Do It',
+                isSample: true
+            },
+            {
+                id: 'sample-3',
+                src: createBuiltInLogoSvg('apple'),
+                answer: 'Apple (ตัวอย่าง)',
+                hint: 'บริษัทเทคโนโลยีผู้ผลิต iPhone และ Mac',
+                isSample: true
+            },
+            {
+                id: 'sample-4',
+                src: createBuiltInLogoSvg('youtube'),
+                answer: 'YouTube (ตัวอย่าง)',
+                hint: 'แพลตฟอร์มดูวิดีโอออนไลน์สีแดง',
+                isSample: true
+            },
+            {
+                id: 'sample-5',
+                src: createBuiltInLogoSvg('arches'),
+                answer: "McDonald's (ตัวอย่าง)",
+                hint: 'ร้านอาหารฟาสต์ฟู้ดตัว M สีเหลือง',
+                isSample: true
+            }
+        ];
+
+        // ---------------- 3. สถานะหลักของเกม (Game State) ----------------
+        let playlist = [...defaultSampleItems];
+        let currentIndex = 0;
+        let gridSize = 4; // 3, 4, 5
+        let tileMode = 'number'; // 'number' | 'quiz'
+        let openedTiles = new Set(); // เก็บ index ของแผ่นป้ายที่เปิดแล้วทั้งหมด (เพื่อแสดงผลบนกระดาน)
+        let isBoardRevealed = false;
+
+        // ตัวแปรคำนวณคะแนนที่แยกกันอย่างชัดเจน (แก้บั๊กหักคะแนนซ้ำซ้อน)
+        let normalOpenedCount = 0; // นับเฉพาะป้ายที่เปิดปกติ (ป้ายละ -10 คะแนน)
+        let usedCorners = false;   // กดเปิดมุม 4 ด้าน (-50 คะแนนถ้วน ไม่คิดเพิ่มรายป้าย)
+        let usedHint = false;      // กดคำใบ้ (-20 คะแนน)
+        let hintBannerVisible = false;
+
+        // ตั้งค่าแบรนด์/ชื่อเกม
+        let gameTitle = 'เกมเปิดแผ่นป้ายทายภาพโลโก้';
+        let gameLogoDataUrl = '';
+        let gameLogoIcon = 'fa-puzzle-piece';
+        let tempLogoDataUrl = '';
+        let tempLogoIcon = 'fa-puzzle-piece';
+
+        // ตำแหน่งภาพโลโก้แบบสุ่ม (ไม่มีการแสดงข้อความบอกพิกัดบนหน้าจอ)
+        const positionPresets = [
+            { x: -24, y: -22 },
+            { x: 24,  y: -22 },
+            { x: -24, y: 22 },
+            { x: 24,  y: 22 },
+            { x: -26, y: 0 },
+            { x: 26,  y: 0 },
+            { x: 0,   y: -24 },
+            { x: 0,   y: 24 },
+            { x: -16, y: -15 },
+            { x: 16,  y: 15 },
+            { x: 0,   y: 0 }
+        ];
+        let currentImgOffset = { x: 0, y: 0 };
+        let lastPresetIdx = -1;
+
+        // โหมดซูม
+        let zoomModeEnabled = false;
+
+        // โหมดเปิดอัตโนมัติ (3 วินาที)
+        let autoCountdownInterval = null;
+        let autoTimeLeft = 3.0;
+
+        // คะแนนทีม
+        let teams = [
+            { id: 1, name: 'ทีมสีแดง 🔥', score: 0, color: 'from-rose-600 to-red-700', border: 'border-rose-400/50' },
+            { id: 2, name: 'ทีมสีน้ำเงิน 💧', score: 0, color: 'from-blue-600 to-indigo-700', border: 'border-blue-400/50' },
+            { id: 3, name: 'ทีมสีเขียว 🌿', score: 0, color: 'from-emerald-600 to-teal-700', border: 'border-emerald-400/50' }
+        ];
+
+        const defaultQuizQuestions = [
+            "บอกชื่อจังหวัดในภาคเหนือ 1 จังหวัด",
+            "7 x 8 เท่ากับเท่าไหร่?",
+            "สัตว์ประจำชาติไทยคืออะไร?",
+            "สะกดคำว่า 'School' เป็นภาษาอังกฤษ",
+            "สีผสมระหว่าง สีแดง + สีเหลือง คือสีอะไร?",
+            "บอกชื่อผลไม้ที่มีรสเปรี้ยว 2 ชนิด",
+            "เมืองหลวงของประเทศญี่ปุ่นคือ?",
+            "ดาวเคราะห์ดวงใดอยู่ใกล้ดวงอาทิตย์ที่สุด?",
+            "บอกชื่อกีฬาที่ใช้ลูกบอลกลมๆ 2 ชนิด",
+            "1 ชั่วโมง มีกี่วินาที?",
+            "คำตรงข้ามของคำว่า 'Hot' คือ?",
+            "บอกชื่อแม่น้ำสายสำคัญของไทย 1 สาย",
+            "ธาตุออกซิเจน ใช้สัญลักษณ์ทางเคมีว่าอะไร?",
+            "บอกชื่อแอปพลิเคชันโซเชียลมีเดีย 2 แอป",
+            "ทำท่าดีใจสุดขีดให้เพื่อนดู 3 วินาที!",
+            "บอกชื่อวันสำคัญในเดือนธันวาคม 1 วัน",
+            "12 x 12 เท่ากับเท่าไหร่?",
+            "บอกชื่อสัตว์เลี้ยงลูกด้วยนมที่บินได้",
+            "ทวีปที่ใหญ่ที่สุดในโลกคือทวีปอะไร?",
+            "บอกชื่อสีรุ้งมา 3 สี",
+            "น้ำเดือดที่อุณหภูมิกี่องศาเซลเซียส?",
+            "บอกชื่อเครื่องดนตรีไทย 1 ชนิด",
+            "เดือนกุมภาพันธ์มีกี่วันในปีปกติ?",
+            "บอกชื่ออาหารไทยยอดนิยม 2 อย่าง",
+            "ชูมือขึ้นแล้วพูดว่า 'ทีมเราชนะแน่นอน!'"
+        ];
+        let quizQuestions = [...defaultQuizQuestions];
+
+        // ---------------- 4. เริ่มต้นเกมและสุ่มตำแหน่งภาพ ----------------
+        window.onload = function () {
+            document.getElementById('setting-quiz-list').value = quizQuestions.join('\n');
+            renderTeams();
+            renderPoolGrid();
+            loadQuestion(0);
+        };
+
+        function pickRandomPosition() {
+            let idx = Math.floor(Math.random() * positionPresets.length);
+            if (idx === lastPresetIdx && positionPresets.length > 1) {
+                idx = (idx + 1) % positionPresets.length;
+            }
+            lastPresetIdx = idx;
+            currentImgOffset = positionPresets[idx];
+        }
+
+        function updateLogoTransform() {
+            const imgEl = document.getElementById('logo-image');
+            if (isBoardRevealed) {
+                // ตอนเฉลย เลื่อนกลับมาตรงกลางและขยายเต็ม 100%
+                imgEl.style.transform = 'translate(0%, 0%) scale(1)';
+                return;
+            }
+            const scaleVal = zoomModeEnabled ? 1.85 : 0.72;
+            imgEl.style.transform = `translate(${currentImgOffset.x}%, ${currentImgOffset.y}%) scale(${scaleVal})`;
+        }
+
+        function rerollImagePosition() {
+            if (isBoardRevealed) return;
+            pickRandomPosition();
+            updateLogoTransform();
+            playSound('flip');
+            showToast('สุ่มย้ายตำแหน่งภาพใหม่เรียบร้อย');
+        }
+
+        function loadQuestion(index) {
+            stopAutoReveal();
+            if (playlist.length === 0) {
+                playlist = [...defaultSampleItems];
+            }
+            if (index < 0) index = playlist.length - 1;
+            if (index >= playlist.length) index = 0;
+
+            currentIndex = index;
+            const item = playlist[currentIndex];
+
+            // รีเซ็ตสถานะกระดานและการคิดคะแนนของข้อนี้
+            openedTiles.clear();
+            isBoardRevealed = false;
+            normalOpenedCount = 0;
+            usedCorners = false;
+            usedHint = false;
+            hintBannerVisible = false;
+
+            // อัปเดตรูปภาพและสุ่มตำแหน่งซ่อน
+            document.getElementById('logo-image').src = item.src;
+            pickRandomPosition();
+            updateLogoTransform();
+
+            // รีเซ็ต UI เฉลยและตัวช่วย
+            document.getElementById('answer-overlay').classList.add('hidden');
+            document.getElementById('hint-banner').classList.add('hidden');
+            document.getElementById('hint-text-display').textContent = item.hint || 'ยังไม่ได้ระบุคำใบ้';
+
+            const cornerBadge = document.getElementById('corners-penalty-badge');
+            cornerBadge.textContent = '-50 คะแนน';
+            cornerBadge.className = 'text-[11px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full shadow-sm';
+
+            const hintBadge = document.getElementById('hint-penalty-badge');
+            hintBadge.textContent = '-20 คะแนน';
+            hintBadge.className = 'text-[11px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full shadow-sm';
+
+            // อัปเดต Header
+            document.getElementById('round-badge').textContent = `ข้อที่ ${currentIndex + 1} / ${playlist.length}`;
+            document.getElementById('header-status-text').textContent = item.isSample
+                ? 'กำลังเล่นภาพตัวอย่าง (กด "การตั้งค่า" เพื่ออัปโหลดรูปโลโก้ของครูได้)'
+                : `โจทย์ภาพโลโก้ที่อัปโหลดเอง (${currentIndex + 1} จาก ${playlist.length})`;
+            document.getElementById('pool-badge').textContent = playlist.length;
+
+            buildTilesGrid();
+            updateScoreDisplay();
+        }
+
+        function buildTilesGrid() {
+            const gridEl = document.getElementById('tiles-grid');
+            gridEl.innerHTML = '';
+            gridEl.style.gridTemplateColumns = `repeat(${gridSize}, minmax(0, 1fr))`;
+            gridEl.style.gridTemplateRows = `repeat(${gridSize}, minmax(0, 1fr))`;
+
+            const totalTiles = gridSize * gridSize;
+            document.getElementById('total-tiles-count').textContent = totalTiles;
+
+            for (let i = 0; i < totalTiles; i++) {
+                const tileContainer = document.createElement('div');
+                tileContainer.className = 'tile-container w-full h-full';
+                tileContainer.id = `tile-${i}`;
+                if (openedTiles.has(i) || isBoardRevealed) {
+                    tileContainer.classList.add('revealed');
+                }
+
+                const colorClass = `tile-color-${(i + Math.floor(i / gridSize)) % 6}`;
+                let contentHtml = '';
+
+                if (tileMode === 'number') {
+                    const fontSize = gridSize === 5 ? 'text-xl sm:text-2xl' : (gridSize === 4 ? 'text-2xl sm:text-4xl' : 'text-3xl sm:text-5xl');
+                    contentHtml = `<span class="${fontSize} font-extrabold text-white font-display drop-shadow">${i + 1}</span>`;
+                } else {
+                    const qText = quizQuestions[i % quizQuestions.length] || `คำถามข้อที่ ${i + 1}`;
+                    const qSize = gridSize === 5 ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm';
+                    contentHtml = `
+                        <span class="text-[10px] bg-black/30 px-1.5 py-0.5 rounded-full text-amber-200 font-bold mb-0.5">#${i + 1}</span>
+                        <span class="${qSize} font-semibold text-white px-1.5 leading-snug line-clamp-3 drop-shadow">${qText}</span>
+                    `;
+                }
+
+                tileContainer.innerHTML = `
+                    <div class="tile-inner">
+                        <div class="tile-front ${colorClass}">
+                            ${contentHtml}
+                        </div>
+                    </div>
+                `;
+
+                tileContainer.addEventListener('click', () => openSingleTile(i));
+                gridEl.appendChild(tileContainer);
+            }
+        }
+
+        // เปิดแผ่นป้ายปกติ 1 ช่อง (-10 คะแนน)
+        function openSingleTile(index) {
+            if (isBoardRevealed || openedTiles.has(index)) return;
+
+            openedTiles.add(index);
+            normalOpenedCount++;
+
+            const tileEl = document.getElementById(`tile-${index}`);
+            if (tileEl) tileEl.classList.add('revealed');
+
+            playSound('flip');
+            updateScoreDisplay();
+
+            if (openedTiles.size >= gridSize * gridSize) {
+                revealAllTiles();
+            }
+        }
+
+        function revealAllTiles() {
+            stopAutoReveal();
+            if (!isBoardRevealed) {
+                playSound('reveal');
+            }
+            isBoardRevealed = true;
+
+            const totalTiles = gridSize * gridSize;
+            for (let i = 0; i < totalTiles; i++) {
+                const tileEl = document.getElementById(`tile-${i}`);
+                if (tileEl) tileEl.classList.add('revealed');
+            }
+
+            // เลื่อนภาพกลับมาตรงกลางเพื่อเฉลยให้เห็นชัดเจน
+            updateLogoTransform();
+
+            const item = playlist[currentIndex];
+            document.getElementById('answer-title').textContent = item.answer;
+            document.getElementById('answer-subtitle').textContent = item.hint ? `คำใบ้: ${item.hint}` : '';
+            document.getElementById('answer-overlay').classList.remove('hidden');
+
+            showToast('เฉลยแล้ว! กดปุ่ม "+ รับคะแนนข้อนี้" ให้ทีมที่ตอบถูกด้านล่างได้เลย');
+        }
+
+        function resetCurrentBoard() {
+            loadQuestion(currentIndex);
+            showToast('ปิดแผ่นป้ายเริ่มข้อนี้ใหม่เรียบร้อย');
+        }
+
+        function nextQuestion() {
+            loadQuestion(currentIndex + 1);
+        }
+
+        function prevQuestion() {
+            loadQuestion(currentIndex - 1);
+        }
+
+        // ---------------- 5. ระบบคำนวณคะแนนและตัวช่วย (Bug-Free) ----------------
+        function getCurrentRewardScore() {
+            const score = 100 - (normalOpenedCount * 10) - (usedCorners ? 50 : 0) - (usedHint ? 20 : 0);
+            return Math.max(0, score);
+        }
+
+        function updateScoreDisplay() {
+            const reward = getCurrentRewardScore();
+            document.getElementById('current-reward-score').textContent = reward;
+            document.getElementById('opened-count').textContent = openedTiles.size;
+            renderTeams();
+        }
+
+        // ตัวช่วย 1: เปิดมุม 4 ด้าน (-50 คะแนนถ้วน ไม่คิดเพิ่มรายป้าย)
+        function revealCorners() {
+            if (isBoardRevealed) return;
+            const corners = [
+                0,
+                gridSize - 1,
+                gridSize * (gridSize - 1),
+                (gridSize * gridSize) - 1
+            ];
+
+            let openedAny = false;
+            corners.forEach(idx => {
+                if (!openedTiles.has(idx)) {
+                    openedTiles.add(idx);
+                    const el = document.getElementById(`tile-${idx}`);
+                    if (el) el.classList.add('revealed');
+                    openedAny = true;
+                }
+            });
+
+            if (openedAny) {
+                usedCorners = true;
+                const badge = document.getElementById('corners-penalty-badge');
+                badge.textContent = 'ใช้แล้ว (-50)';
+                badge.className = 'text-[11px] bg-slate-700 text-slate-300 font-medium px-2 py-0.5 rounded-full';
+
+                playSound('powerup');
+                updateScoreDisplay();
+                showToast('เปิดมุม 4 ด้านแล้ว! (หักคะแนนรางวัล 50 คะแนนถ้วน)');
+                if (openedTiles.size >= gridSize * gridSize) revealAllTiles();
+            } else {
+                showToast('แผ่นป้ายมุมทั้ง 4 ด้านถูกเปิดหมดแล้ว');
+            }
+        }
+
+        // ตัวช่วย 2: คำใบ้ (-20 คะแนน)
+        function useHintPowerup() {
+            const banner = document.getElementById('hint-banner');
+            if (!usedHint && !isBoardRevealed) {
+                usedHint = true;
+                hintBannerVisible = true;
+                banner.classList.remove('hidden');
+
+                const badge = document.getElementById('hint-penalty-badge');
+                badge.textContent = 'ซ่อน/แสดงคำใบ้';
+                badge.className = 'text-[11px] bg-slate-700 text-cyan-200 font-medium px-2 py-0.5 rounded-full';
+
+                playSound('powerup');
+                updateScoreDisplay();
+                showToast('เปิดคำใบ้แล้ว! (หักคะแนนรางวัล 20 คะแนน)');
+            } else {
+                hintBannerVisible = !hintBannerVisible;
+                banner.classList.toggle('hidden', !hintBannerVisible);
+            }
+        }
+
+        // ตัวช่วย 3: โหมดซูมภาพ
+        function toggleZoomMode() {
+            zoomModeEnabled = !zoomModeEnabled;
+            const btn = document.getElementById('btn-zoom-toggle');
+            const label = document.getElementById('btn-zoom-text');
+
+            if (zoomModeEnabled) {
+                label.textContent = 'ซูมภาพ: เปิด';
+                btn.classList.replace('bg-amber-600/30', 'bg-amber-500/40');
+                playSound('powerup');
+                showToast('เปิดโหมดซูมภาพด้านหลังแล้ว');
+            } else {
+                label.textContent = 'ซูมภาพ: ปิด';
+                btn.classList.replace('bg-amber-500/40', 'bg-amber-600/30');
+                showToast('ปิดโหมดซูมภาพแล้ว');
+            }
+            updateLogoTransform();
+        }
+
+        // ตัวช่วย 4: เปิดอัตโนมัติ (3 วินาที)
+        function toggleAutoReveal() {
+            if (autoCountdownInterval) {
+                stopAutoReveal();
+            } else {
+                startAutoReveal();
+            }
+        }
+
+        function startAutoReveal() {
+            if (isBoardRevealed) return;
+            stopAutoReveal();
+
+            document.getElementById('auto-reveal-bar').classList.remove('hidden');
+            document.getElementById('btn-auto-text').textContent = 'หยุดอัตโนมัติ';
+            autoTimeLeft = 3.0;
+            updateAutoBarUI();
+
+            autoCountdownInterval = setInterval(() => {
+                autoTimeLeft -= 0.1;
+                if (autoTimeLeft <= 0) {
+                    const total = gridSize * gridSize;
+                    const unopened = [];
+                    for (let i = 0; i < total; i++) {
+                        if (!openedTiles.has(i)) unopened.push(i);
+                    }
+                    if (unopened.length > 0) {
+                        const randIdx = unopened[Math.floor(Math.random() * unopened.length)];
+                        openSingleTile(randIdx);
+                    }
+                    if (isBoardRevealed) {
+                        stopAutoReveal();
+                        return;
+                    }
+                    autoTimeLeft = 3.0;
+                } else if (Math.abs(autoTimeLeft - 2.0) < 0.05 || Math.abs(autoTimeLeft - 1.0) < 0.05) {
+                    playSound('tick');
+                }
+                updateAutoBarUI();
+            }, 100);
+        }
+
+        function stopAutoReveal() {
+            if (autoCountdownInterval) {
+                clearInterval(autoCountdownInterval);
+                autoCountdownInterval = null;
+            }
+            document.getElementById('auto-reveal-bar').classList.add('hidden');
+            document.getElementById('btn-auto-text').textContent = 'เปิดอัตโนมัติ (3 วิ)';
+        }
+
+        function updateAutoBarUI() {
+            const clamped = Math.max(0, autoTimeLeft);
+            document.getElementById('auto-countdown-text').textContent = clamped.toFixed(1);
+            document.getElementById('auto-progress-fill').style.width = `${(clamped / 3.0) * 100}%`;
+        }
+
+        // ---------------- 6. เปลี่ยนขนาดตารางและโหมดแผ่นป้าย ----------------
+        function changeGridSize(newSize) {
+            gridSize = newSize;
+            [3, 4, 5].forEach(s => {
+                const btn = document.getElementById(`grid-btn-${s}`);
+                if (s === newSize) {
+                    btn.className = 'grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-indigo-400 bg-indigo-600 text-white shadow transition';
+                } else {
+                    btn.className = 'grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-slate-600 bg-slate-700 text-slate-200 hover:bg-slate-600 transition';
+                }
+            });
+            loadQuestion(currentIndex);
+            showToast(`เปลี่ยนขนาดแผ่นป้ายเป็น ${newSize}x${newSize} (${newSize * newSize} ช่อง)`);
+        }
+
+        function changeTileMode(mode) {
+            tileMode = mode;
+            const btnNum = document.getElementById('mode-btn-number');
+            const btnQuiz = document.getElementById('mode-btn-quiz');
+            const badge = document.getElementById('current-mode-badge');
+
+            if (mode === 'number') {
+                btnNum.className = 'py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white border border-indigo-400 transition';
+                btnQuiz.className = 'py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600 transition';
+                badge.textContent = 'โหมดตัวเลข';
+            } else {
+                btnQuiz.className = 'py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white border border-indigo-400 transition';
+                btnNum.className = 'py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600 transition';
+                badge.textContent = 'โหมดป้ายคำถาม';
+            }
+            buildTilesGrid();
+        }
+
+        // ---------------- 7. หน้าต่าง "การตั้งค่า" รวม 3 แท็บ ----------------
+        function openSettingsModal(initialTab = 'pool') {
+            renderPoolGrid();
+            document.getElementById('input-game-title').value = gameTitle;
+            tempLogoDataUrl = gameLogoDataUrl;
+            tempLogoIcon = gameLogoIcon;
+            updateBrandingPreview();
+            switchSettingsTab(initialTab);
+            document.getElementById('modal-unified-settings').classList.remove('hidden');
+        }
+
+        function switchSettingsTab(tabName) {
+            ['pool', 'branding', 'rules'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const panel = document.getElementById(`tab-content-${t}`);
+                if (t === tabName) {
+                    btn.className = 'py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-indigo-600 text-white shadow transition';
+                    panel.classList.remove('hidden');
+                } else {
+                    btn.className = 'py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 bg-slate-800/70 text-slate-300 hover:bg-slate-800 transition';
+                    panel.classList.add('hidden');
+                }
+            });
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // --- Tab 1: คลังภาพ & โจทย์ลับ ---
+        function handleBatchUpload(event) {
+            const files = Array.from(event.target.files);
+            if (!files.length) return;
+
+            if (playlist.every(item => item.isSample)) {
+                playlist = [];
+            }
+
+            let loadedCount = 0;
+            files.forEach((file) => {
+                if (!file.type.startsWith('image/')) return;
+
+                const rawName = file.name.replace(/\.[^/.]+$/, "");
+                let answer = rawName.trim();
+                let hint = "";
+                if (rawName.includes(' - ')) {
+                    const parts = rawName.split(' - ');
+                    answer = parts[0].trim();
+                    hint = parts.slice(1).join(' - ').trim();
+                }
+
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    playlist.push({
+                        id: 'img-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+                        src: e.target.result,
+                        answer: answer,
+                        hint: hint,
+                        isSample: false
+                    });
+                    loadedCount++;
+                    if (loadedCount === files.length) {
+                        renderPoolGrid();
+                        loadQuestion(0);
+                        showToast(`อัปโหลดภาพโลโก้สำเร็จ ${loadedCount} ภาพ!`);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            event.target.value = '';
+        }
+
+        function resetToBuiltInSamples() {
+            playlist = [...defaultSampleItems];
+            renderPoolGrid();
+            loadQuestion(0);
+            showToast('โหลดภาพตัวอย่างเริ่มต้น 5 ภาพเรียบร้อย');
+        }
+
+        function shufflePlaylist() {
+            for (let i = playlist.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [playlist[i], playlist[j]] = [playlist[j], playlist[i]];
+            }
+            renderPoolGrid();
+            loadQuestion(0);
+            showToast('สลับลำดับข้อเรียบร้อย!');
+        }
+
+        function renderPoolGrid() {
+            const container = document.getElementById('pool-grid');
+            const isBlurred = document.getElementById('toggle-secret-blur').checked;
+            container.innerHTML = '';
+
+            playlist.forEach((item, idx) => {
+                const isCurrent = idx === currentIndex;
+                const card = document.createElement('div');
+                card.className = `bg-slate-800/90 border ${isCurrent ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-slate-700'} rounded-xl p-3 flex flex-col justify-between gap-2 transition`;
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-20 h-16 bg-white rounded-lg p-1.5 flex items-center justify-center shrink-0 overflow-hidden border border-slate-600">
+                            <img src="${item.src}" class="max-w-full max-h-full object-contain ${isBlurred ? 'secret-blur' : ''}">
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-1">
+                                <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-700 text-slate-300">ข้อที่ ${idx + 1}</span>
+                                ${isCurrent ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500 text-slate-950">กำลังเล่น</span>' : ''}
+                            </div>
+                            <div class="font-bold text-white text-sm truncate mt-1 ${isBlurred ? 'blur-sm hover:blur-none transition' : ''}" title="${item.answer}">
+                                ${item.answer}
+                            </div>
+                            <div class="text-xs text-cyan-300 truncate mt-0.5">
+                                <i class="fa-solid fa-lightbulb text-yellow-400 mr-1"></i>${item.hint || 'ไม่มีคำใบ้'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-700/70">
+                        <button onclick="selectSecretQuestion(${idx})" class="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition">
+                            <i class="fa-solid fa-play"></i> เลือกเล่นข้อนี้
+                        </button>
+                        <button onclick="openEditItemModal(${idx})" class="p-1.5 rounded-lg bg-slate-700 hover:bg-indigo-600 text-slate-200 text-xs" title="แก้ไขคำเฉลย/คำใบ้">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="deletePoolItem(${idx})" class="p-1.5 rounded-lg bg-slate-700 hover:bg-rose-600 text-slate-200 text-xs" title="ลบภาพนี้">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectSecretQuestion(idx) {
+            loadQuestion(idx);
+            closeModal('modal-unified-settings');
+            showToast(`โหลดโจทย์ข้อที่ ${idx + 1} ลงกระดานเรียบร้อย`);
+        }
+
+        function deletePoolItem(idx) {
+            if (playlist.length <= 1) {
+                showToast('ต้องมีภาพในคลังอย่างน้อย 1 ภาพ');
+                return;
+            }
+            playlist.splice(idx, 1);
+            if (currentIndex >= playlist.length) currentIndex = 0;
+            renderPoolGrid();
+            loadQuestion(currentIndex);
+        }
+
+        function openEditItemModal(idx) {
+            const item = playlist[idx];
+            document.getElementById('edit-item-index').value = idx;
+            document.getElementById('edit-item-answer').value = item.answer;
+            document.getElementById('edit-item-hint').value = item.hint || '';
+            document.getElementById('modal-edit-item').classList.remove('hidden');
+        }
+
+        function saveEditedItem() {
+            const idx = parseInt(document.getElementById('edit-item-index').value, 10);
+            const newAns = document.getElementById('edit-item-answer').value.trim();
+            const newHint = document.getElementById('edit-item-hint').value.trim();
+
+            if (newAns) playlist[idx].answer = newAns;
+            playlist[idx].hint = newHint;
+
+            closeModal('modal-edit-item');
+            renderPoolGrid();
+            if (idx === currentIndex) {
+                document.getElementById('hint-text-display').textContent = newHint || 'ยังไม่ได้ระบุคำใบ้';
+                document.getElementById('answer-title').textContent = playlist[idx].answer;
+            }
+            showToast('บันทึกคำเฉลยและคำใบ้เรียบร้อย');
+        }
+
+        // --- Tab 2: ชื่อ & โลโก้เกม ---
+        function livePreviewTitle(val) {
+            document.querySelector('#game-title-display span').textContent = val.trim() || 'เกมเปิดแผ่นป้ายทายภาพโลโก้';
+        }
+
+        function handleGameLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                tempLogoDataUrl = e.target.result;
+                updateBrandingPreview();
+            };
+            reader.readAsDataURL(file);
+            event.target.value = '';
+        }
+
+        function selectPresetIcon(iconClass) {
+            tempLogoDataUrl = '';
+            tempLogoIcon = iconClass;
+            updateBrandingPreview();
+        }
+
+        function resetGameLogo() {
+            tempLogoDataUrl = '';
+            tempLogoIcon = 'fa-puzzle-piece';
+            updateBrandingPreview();
+        }
+
+        function updateBrandingPreview() {
+            const imgEl = document.getElementById('preview-logo-img');
+            const iconEl = document.getElementById('preview-logo-icon');
+            if (tempLogoDataUrl) {
+                imgEl.src = tempLogoDataUrl;
+                imgEl.classList.remove('hidden');
+                iconEl.classList.add('hidden');
+            } else {
+                imgEl.classList.add('hidden');
+                iconEl.className = `fa-solid ${tempLogoIcon}`;
+                iconEl.classList.remove('hidden');
+            }
+        }
+
+        function saveBranding() {
+            const newTitle = document.getElementById('input-game-title').value.trim();
+            if (newTitle) gameTitle = newTitle;
+            gameLogoDataUrl = tempLogoDataUrl;
+            gameLogoIcon = tempLogoIcon;
+
+            document.querySelector('#game-title-display span').textContent = gameTitle;
+            const headerImg = document.getElementById('game-logo-img');
+            const headerIcon = document.getElementById('game-logo-icon');
+            if (gameLogoDataUrl) {
+                headerImg.src = gameLogoDataUrl;
+                headerImg.classList.remove('hidden');
+                headerIcon.classList.add('hidden');
+            } else {
+                headerImg.classList.add('hidden');
+                headerIcon.className = `fa-solid ${gameLogoIcon}`;
+                headerIcon.classList.remove('hidden');
+            }
+
+            closeModal('modal-unified-settings');
+            showToast('บันทึกชื่อเกมและโลโก้เรียบร้อยแล้ว!');
+        }
+
+        // --- Tab 3: ชุดคำถาม ---
+        function loadDefaultQuizQuestions() {
+            document.getElementById('setting-quiz-list').value = defaultQuizQuestions.join('\n');
+        }
+
+        function saveRulesSettings() {
+            const rawQuiz = document.getElementById('setting-quiz-list').value;
+            const parsedQuiz = rawQuiz.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            if (parsedQuiz.length > 0) {
+                quizQuestions = parsedQuiz;
+            }
+            closeModal('modal-unified-settings');
+            if (tileMode === 'quiz') buildTilesGrid();
+            showToast('บันทึกชุดคำถามเรียบร้อยแล้ว!');
+        }
+
+        // --- ระบบส่งออกและนำเข้าชุดเกม (Export / Import Game Pack .json) ---
+        function exportGamePack() {
+            try {
+                const packData = {
+                    app: 'ClassroomLogoReveal',
+                    version: 1,
+                    exportedAt: new Date().toISOString(),
+                    gameTitle: gameTitle,
+                    gameLogoDataUrl: gameLogoDataUrl,
+                    gameLogoIcon: gameLogoIcon,
+                    gridSize: gridSize,
+                    tileMode: tileMode,
+                    quizQuestions: quizQuestions,
+                    playlist: playlist
+                };
+
+                const jsonStr = JSON.stringify(packData, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const safeTitle = (gameTitle || 'เกมทายโลโก้')
+                    .replace(/[\\/:*?"<>|]/g, '')
+                    .trim()
+                    .replace(/\s+/g, '_');
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const filename = `${safeTitle}_${dateStr}.json`;
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showToast(`บันทึกชุดเกม "${filename}" (${playlist.length} ภาพ) เรียบร้อยแล้ว!`);
+            } catch (err) {
+                console.error('Export failed:', err);
+                showToast('เกิดข้อผิดพลาดในการบันทึกไฟล์ชุดเกม');
+            }
+        }
+
+        function importGamePack(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data || !Array.isArray(data.playlist) || data.playlist.length === 0) {
+                        showToast('ไฟล์ชุดเกมไม่ถูกต้อง หรือไม่มีรายการภาพโลโก้ในไฟล์');
+                        return;
+                    }
+
+                    // กู้คืนรายการภาพโลโก้
+                    playlist = data.playlist.map((item, idx) => ({
+                        id: item.id || `imported-${Date.now()}-${idx}`,
+                        src: item.src,
+                        answer: item.answer || `ข้อที่ ${idx + 1}`,
+                        hint: item.hint || '',
+                        isSample: Boolean(item.isSample)
+                    }));
+
+                    // กู้คืนชื่อเกมและโลโก้หน้าชื่อเกม
+                    if (typeof data.gameTitle === 'string' && data.gameTitle.trim()) {
+                        gameTitle = data.gameTitle.trim();
+                    }
+                    gameLogoDataUrl = typeof data.gameLogoDataUrl === 'string' ? data.gameLogoDataUrl : '';
+                    gameLogoIcon = typeof data.gameLogoIcon === 'string' ? data.gameLogoIcon : 'fa-puzzle-piece';
+                    tempLogoDataUrl = gameLogoDataUrl;
+                    tempLogoIcon = gameLogoIcon;
+
+                    document.querySelector('#game-title-display span').textContent = gameTitle;
+                    document.getElementById('input-game-title').value = gameTitle;
+                    const headerImg = document.getElementById('game-logo-img');
+                    const headerIcon = document.getElementById('game-logo-icon');
+                    if (gameLogoDataUrl) {
+                        headerImg.src = gameLogoDataUrl;
+                        headerImg.classList.remove('hidden');
+                        headerIcon.classList.add('hidden');
+                    } else {
+                        headerImg.classList.add('hidden');
+                        headerIcon.className = `fa-solid ${gameLogoIcon}`;
+                        headerIcon.classList.remove('hidden');
+                    }
+                    updateBrandingPreview();
+
+                    // กู้คืนชุดคำถาม ขนาดตาราง และโหมดป้าย
+                    if (Array.isArray(data.quizQuestions) && data.quizQuestions.length > 0) {
+                        quizQuestions = data.quizQuestions;
+                        document.getElementById('setting-quiz-list').value = quizQuestions.join('\n');
+                    }
+                    if ([3, 4, 5].includes(data.gridSize)) {
+                        gridSize = data.gridSize;
+                        [3, 4, 5].forEach(s => {
+                            const btn = document.getElementById(`grid-btn-${s}`);
+                            btn.className = s === gridSize
+                                ? 'grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-indigo-400 bg-indigo-600 text-white shadow transition'
+                                : 'grid-size-btn py-1.5 rounded-lg text-xs font-bold border border-slate-600 bg-slate-700 text-slate-200 hover:bg-slate-600 transition';
+                        });
+                    }
+                    if (data.tileMode === 'number' || data.tileMode === 'quiz') {
+                        changeTileMode(data.tileMode);
+                    }
+
+                    renderPoolGrid();
+                    loadQuestion(0);
+                    playSound('score');
+                    showToast(`โหลดชุดเกมสำเร็จ! พบภาพโลโก้ทั้งหมด ${playlist.length} ข้อ`);
+                } catch (err) {
+                    console.error('Import failed:', err);
+                    showToast('ไม่สามารถอ่านไฟล์ได้ กรุณาเลือกไฟล์ .json ที่บันทึกจากเกมนี้');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ---------------- 8. กระดานคะแนนทีมแข่งขัน ----------------
+        const teamTemplates = [
+            { name: 'ทีมสีแดง 🔥', color: 'from-rose-600 to-red-700', border: 'border-rose-400/50' },
+            { name: 'ทีมสีน้ำเงิน 💧', color: 'from-blue-600 to-indigo-700', border: 'border-blue-400/50' },
+            { name: 'ทีมสีเขียว 🌿', color: 'from-emerald-600 to-teal-700', border: 'border-emerald-400/50' },
+            { name: 'ทีมสีเหลือง ⚡', color: 'from-amber-500 to-orange-600', border: 'border-amber-400/50' }
+        ];
+
+        function renderTeams() {
+            const container = document.getElementById('teams-container');
+            const reward = getCurrentRewardScore();
+
+            container.className = `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${teams.length} gap-2.5`;
+            container.innerHTML = '';
+
+            teams.forEach((team, idx) => {
+                const card = document.createElement('div');
+                card.className = `bg-gradient-to-br ${team.color} border ${team.border} rounded-xl p-2.5 shadow-lg flex flex-col justify-between gap-2`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <input type="text" value="${team.name}" onchange="renameTeam(${idx}, this.value)" 
+                            class="bg-black/25 hover:bg-black/40 focus:bg-black/60 text-white font-bold text-sm sm:text-base px-2.5 py-1 rounded-lg w-full outline-none border border-transparent focus:border-white/50 transition">
+                        <span class="text-2xl sm:text-3xl font-extrabold text-white font-display px-2 drop-shadow">${team.score}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="addTeamScore(${idx}, ${reward})" class="flex-1 py-1.5 px-2 rounded-lg bg-white/95 hover:bg-white text-slate-900 font-extrabold text-xs shadow flex items-center justify-center gap-1 transition active:scale-95">
+                            <i class="fa-solid fa-trophy text-amber-500"></i>
+                            <span>+ รับคะแนนข้อนี้ (${reward})</span>
+                        </button>
+                        <button onclick="addTeamScore(${idx}, 10)" class="py-1.5 px-2.5 rounded-lg bg-black/30 hover:bg-black/50 text-white font-bold text-xs transition" title="บวก 10 คะแนน">+10</button>
+                        <button onclick="addTeamScore(${idx}, -10)" class="py-1.5 px-2.5 rounded-lg bg-black/30 hover:bg-black/50 text-white/80 font-bold text-xs transition" title="หัก 10 คะแนน">-10</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renameTeam(idx, newName) {
+            if (newName.trim()) teams[idx].name = newName.trim();
+        }
+
+        function addTeamScore(idx, points) {
+            teams[idx].score = Math.max(0, teams[idx].score + points);
+            if (points > 0) playSound('score');
+            renderTeams();
+            showToast(`${teams[idx].name} ${points >= 0 ? 'ได้รับ' : 'ถูกหัก'} ${Math.abs(points)} คะแนน!`);
+        }
+
+        function adjustTeamCount(delta) {
+            const nextCount = teams.length + delta;
+            if (nextCount < 2 || nextCount > 4) {
+                showToast('รองรับจำนวนทีมแข่งขันตั้งแต่ 2 ถึง 4 ทีมครับ');
+                return;
+            }
+            if (delta > 0) {
+                const tpl = teamTemplates[teams.length];
+                teams.push({ id: Date.now(), name: tpl.name, score: 0, color: tpl.color, border: tpl.border });
+            } else {
+                teams.pop();
+            }
+            renderTeams();
+        }
+
+        function resetAllScores() {
+            teams.forEach(t => t.score = 0);
+            renderTeams();
+            showToast('รีเซ็ตคะแนนทุกทีมเป็น 0 เรียบร้อย');
+        }
+
+        // ---------------- 9. สรุปผลผู้ชนะ (Winner Podium & Confetti) ----------------
+        let confettiAnimId = null;
+
+        function openWinnerSummary() {
+            stopAutoReveal();
+            playSound('reveal');
+
+            document.getElementById('winner-game-title').textContent = `สรุปผลการแข่งขัน: ${gameTitle}`;
+
+            const sortedTeams = [...teams].sort((a, b) => b.score - a.score);
+            const podiumContainer = document.getElementById('podium-container');
+            const fourthContainer = document.getElementById('fourth-place-container');
+            podiumContainer.innerHTML = '';
+
+            const podiumOrder = [];
+            if (sortedTeams[1]) podiumOrder.push({ team: sortedTeams[1], rank: 2, height: 'h-32 sm:h-36', medal: '🥈', badgeBg: 'bg-slate-300 text-slate-900', anim: 'animate-podium-2' });
+            if (sortedTeams[0]) podiumOrder.push({ team: sortedTeams[0], rank: 1, height: 'h-44 sm:h-52', medal: '👑', badgeBg: 'bg-amber-400 text-slate-950', anim: 'animate-podium-1' });
+            if (sortedTeams[2]) podiumOrder.push({ team: sortedTeams[2], rank: 3, height: 'h-24 sm:h-28', medal: '🥉', badgeBg: 'bg-orange-400 text-slate-950', anim: 'animate-podium-3' });
+
+            podiumOrder.forEach(item => {
+                const col = document.createElement('div');
+                col.className = `flex-1 max-w-[190px] flex flex-col items-center ${item.anim}`;
+                col.innerHTML = `
+                    <div class="text-3xl sm:text-4xl mb-1 drop-shadow">${item.medal}</div>
+                    <div class="font-extrabold text-white text-sm sm:text-lg truncate w-full px-1 mb-1">${item.team.name}</div>
+                    <div class="${item.badgeBg} font-extrabold text-xs sm:text-sm px-3 py-0.5 rounded-full mb-2 shadow">
+                        ${item.team.score} คะแนน
+                    </div>
+                    <div class="w-full ${item.height} bg-gradient-to-t ${item.team.color} border-t-4 border-white/50 rounded-t-2xl shadow-2xl flex items-center justify-center">
+                        <span class="text-4xl sm:text-5xl font-black text-white/30 font-display">${item.rank}</span>
+                    </div>
+                `;
+                podiumContainer.appendChild(col);
+            });
+
+            if (sortedTeams[3]) {
+                fourthContainer.classList.remove('hidden');
+                fourthContainer.innerHTML = `
+                    <span class="font-bold text-slate-300">อันดับที่ 4: <strong class="text-white">${sortedTeams[3].name}</strong></span>
+                    <span class="font-extrabold text-amber-400">${sortedTeams[3].score} คะแนน</span>
+                `;
+            } else {
+                fourthContainer.classList.add('hidden');
+            }
+
+            document.getElementById('modal-winner').classList.remove('hidden');
+            startConfetti();
+        }
+
+        function closeWinnerSummary() {
+            document.getElementById('modal-winner').classList.add('hidden');
+            stopConfetti();
+        }
+
+        function startNewGameFromWinner() {
+            resetAllScores();
+            loadQuestion(0);
+            closeWinnerSummary();
+            showToast('เริ่มเกมใหม่เรียบร้อย รีเซ็ตคะแนนทุกทีมเป็น 0 แล้ว!');
+        }
+
+        function startConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colors = ['#fbbf24', '#38bdf8', '#f43f5e', '#34d399', '#a78bfa', '#fb923c'];
+            const particles = Array.from({ length: 120 }, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                w: Math.random() * 10 + 6,
+                h: Math.random() * 6 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                vx: (Math.random() - 0.5) * 3,
+                vy: Math.random() * 3 + 2,
+                rot: Math.random() * 360,
+                vRot: (Math.random() - 0.5) * 8
+            }));
+
+            function render() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.vRot;
+                    if (p.y > canvas.height) {
+                        p.y = -20;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate((p.rot * Math.PI) / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                    ctx.restore();
+                });
+                confettiAnimId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        function stopConfetti() {
+            if (confettiAnimId) {
+                cancelAnimationFrame(confettiAnimId);
+                confettiAnimId = null;
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('status-toast');
+            toast.textContent = msg;
+            toast.classList.add('text-amber-300', 'border-amber-500/40');
+            setTimeout(() => {
+                toast.classList.remove('text-amber-300', 'border-amber-500/40');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
